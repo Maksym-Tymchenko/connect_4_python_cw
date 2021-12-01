@@ -1,9 +1,12 @@
 import numpy as np
 from numpy.lib.utils import who
+from scipy.signal import convolve2d
+import time
 
 class Game:
-    def __init__(self, n, m, k):
+    def __init__(self, n, m, k, do_pruning = True):
         self.k = k
+        self.do_pruning = do_pruning
         self.initialize_game(n, m)
 
     def initialize_game(self, n, m):
@@ -66,6 +69,33 @@ class Game:
         
         # If board is full or anyone won return True and who won as a second output
         return ((is_full or has_anyone_won), who_won)
+
+
+    def has_anyone_won_efficient(self,board):
+
+        num_rows = board.shape[0]
+        num_cols = board.shape[1]
+        k = self.k
+
+        horizontal_kernel = np.array([[ 1, 1, 1, 1]])
+        vertical_kernel = np.transpose(horizontal_kernel)
+        diag1_kernel = np.eye(4, dtype=np.uint8)
+        diag2_kernel = np.fliplr(diag1_kernel)
+        detection_kernels = [horizontal_kernel, vertical_kernel, diag1_kernel, diag2_kernel]
+        
+        for kernel in detection_kernels:
+            print(board)
+            print(kernel)
+            convolution = convolve2d(board, kernel, mode="same")
+            print(f"horizontal convolution: {convolution}")
+            
+            if (convolution == 4).any():
+                return 1
+
+            elif (convolution == 40).any():
+                return 10
+
+        return None
 
 
     def has_anyone_won(self, board):
@@ -194,7 +224,7 @@ class Game:
 
         return resultant_board
 
-    def max(self, board, alpha, beta):
+    def max(self, board, alpha, beta, do_pruning = True):
         """Returns maximum score for max among all the states achievable from the current state. """
 
         # Check if the board is in a terminal state (leaf node)
@@ -222,13 +252,13 @@ class Game:
             # resulting board of filling cell with an 1 (X)
             res_board = self.action_result(board, action, 1)
             # print(f"res board: \n {res_board}")
-            res_score = self.min(res_board, alpha, beta)
+            res_score = self.min(res_board, alpha, beta, do_pruning = self.do_pruning)
             # print(f"res score: {res_score}")
             # resulting score if min playes next turn
             v = max(v, res_score)
              
             # Do alpha beta pruning
-            if v >= beta:
+            if do_pruning and v >= beta:
                 return v
             alpha = max(alpha, v)
             # print(f"res_score type: {type(res_score)}")
@@ -239,7 +269,7 @@ class Game:
         return v
 
 
-    def min(self, board, alpha, beta):
+    def min(self, board, alpha, beta, do_pruning = True):
         """Returns minimum score for max among all the states achievable from the current state. """
 
         # Check if the board is in a terminal state (leaf node)
@@ -266,12 +296,12 @@ class Game:
             res_board = self.action_result(board, action, 2)
             # print(f"res board: \n {res_board}")
             # resulting score if max plays next turn
-            res_score = self.max(res_board, alpha, beta)
+            res_score = self.max(res_board, alpha, beta, do_pruning = self.do_pruning)
             # print(f"res score: {res_score}")
             v = min(v, res_score)
 
             # Do alpha beta pruning
-            if v <= alpha:
+            if do_pruning and v <= alpha:
                 return v
             beta = min(beta, v)
 
@@ -291,7 +321,7 @@ class Game:
             children_min_value = []
             for action in valid_actions:
                 res_board = self.action_result(board, action, 1)
-                res_score = self.min(res_board, -np.inf, +np.inf)
+                res_score = self.min(res_board, -np.inf, +np.inf, do_pruning = self.do_pruning)
                 children_min_value.append(res_score)
 
             # print(f"Children min value for max: {children_min_value}")
@@ -304,7 +334,7 @@ class Game:
             children_max_value = []
             for action in valid_actions:
                 res_board = self.action_result(board, action, 2)
-                res_score = self.max(res_board, -np.inf, +np.inf)
+                res_score = self.max(res_board, -np.inf, +np.inf, do_pruning = self.do_pruning)
                 children_max_value.append(res_score)
 
             # print(f"Children max value for min: {children_max_value}")
@@ -451,14 +481,18 @@ def test_has_anyone_won():
     myGame.board[:3,-1] = 2
 
     # Create a diagonal of 2s
-    for i in range(4):
+    for i in range(3):
         myGame.board[i+2,i+1] = 2
 
     # Draw the board
     myGame.draw_board()
 
     # Check if anyone won
-    print(myGame.has_anyone_won(myGame.board))
+    start = time.time()
+    print(myGame.has_anyone_won_efficient(myGame.board))
+    end = time.time()
+    elapsed = end-start
+    print(f"Checked if anyone won in {elapsed} seconds.")
 
     # Check if it is terminal
     print(myGame.is_terminal(myGame.board))
@@ -466,7 +500,7 @@ def test_has_anyone_won():
 def test_max():
 
     # Initialize game
-    myGame = Game(n=4, m=4, k=4)
+    myGame = Game(n=4, m=5, k=3)
 
     # Create a full board
     # myGame.board[:,:] = 0
@@ -503,11 +537,21 @@ def test_max():
 
     myGame.play()
 
+def time_alpha_beta():
+    import time
+    myGame = Game(n=5, m=5, k=4, do_pruning = True)
 
+    start = time.time()
+    myGame.max(myGame.board, -np.inf, np.inf)
+    end = time.time()
+    elapsed = end-start
+
+    print(f"Max value search took {elapsed} seconds")
 
 if __name__ == "__main__":
     # test_draw_board()
     # test_is_valid()
     # test_is_terminal()
-    # test_has_anyone_won()
-    test_max()
+    test_has_anyone_won()
+    # test_max()
+    # time_alpha_beta()
