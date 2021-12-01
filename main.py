@@ -194,7 +194,7 @@ class Game:
 
         return resultant_board
 
-    def max(self, board):
+    def max(self, board, alpha, beta):
         """Returns maximum score for max among all the states achievable from the current state. """
 
         # Check if the board is in a terminal state (leaf node)
@@ -222,10 +222,15 @@ class Game:
             # resulting board of filling cell with an 1 (X)
             res_board = self.action_result(board, action, 1)
             # print(f"res board: \n {res_board}")
-            res_score = self.min(res_board)
+            res_score = self.min(res_board, alpha, beta)
             # print(f"res score: {res_score}")
             # resulting score if min playes next turn
             v = max(v, res_score)
+             
+            # Do alpha beta pruning
+            if v >= beta:
+                return v
+            alpha = max(alpha, v)
             # print(f"res_score type: {type(res_score)}")
 
         #print("I checked maxs action {action}")
@@ -234,7 +239,7 @@ class Game:
         return v
 
 
-    def min(self, board):
+    def min(self, board, alpha, beta):
         """Returns minimum score for max among all the states achievable from the current state. """
 
         # Check if the board is in a terminal state (leaf node)
@@ -261,9 +266,14 @@ class Game:
             res_board = self.action_result(board, action, 2)
             # print(f"res board: \n {res_board}")
             # resulting score if max plays next turn
-            res_score = self.max(res_board)
+            res_score = self.max(res_board, alpha, beta)
             # print(f"res score: {res_score}")
             v = min(v, res_score)
+
+            # Do alpha beta pruning
+            if v <= alpha:
+                return v
+            beta = min(beta, v)
 
         return v
 
@@ -281,7 +291,7 @@ class Game:
             children_min_value = []
             for action in valid_actions:
                 res_board = self.action_result(board, action, 1)
-                res_score = self.min(res_board)
+                res_score = self.min(res_board, -np.inf, +np.inf)
                 children_min_value.append(res_score)
 
             # print(f"Children min value for max: {children_min_value}")
@@ -294,7 +304,7 @@ class Game:
             children_max_value = []
             for action in valid_actions:
                 res_board = self.action_result(board, action, 2)
-                res_score = self.max(res_board)
+                res_score = self.max(res_board, -np.inf, +np.inf)
                 children_max_value.append(res_score)
 
             # print(f"Children max value for min: {children_max_value}")
@@ -456,28 +466,28 @@ def test_has_anyone_won():
 def test_max():
 
     # Initialize game
-    myGame = Game(n=5, m=5, k=3)
+    myGame = Game(n=4, m=4, k=4)
 
     # Create a full board
-    myGame.board[:,:] = 0
+    # myGame.board[:,:] = 0
 
-    myGame.board[7:,0:2] = 2
-    myGame.board[3:7,0:2] = 1
-    myGame.board[2:3,0:2] = 2
+    # myGame.board[7:,0:2] = 2
+    # myGame.board[3:7,0:2] = 1
+    # myGame.board[2:3,0:2] = 2
 
-    myGame.board[7:,-2:] = 2
-    myGame.board[3:7,-2:] = 1
-    myGame.board[2:3,-2:] = 2
+    # myGame.board[7:,-2:] = 2
+    # myGame.board[3:7,-2:] = 1
+    # myGame.board[2:3,-2:] = 2
 
-    # myGame.board[7:,0] = 2
-    # myGame.board[4:7,0] = 1
-    # myGame.board[1:4,0] = 2
+    # # myGame.board[7:,0] = 2
+    # # myGame.board[4:7,0] = 1
+    # # myGame.board[1:4,0] = 2
 
 
-    myGame.board[8:,3] = 2
+    # myGame.board[8:,3] = 2
 
-    # Draw the board
-    myGame.draw_board()
+    # # Draw the board
+    # myGame.draw_board()
 
     # res_board = myGame.action_result(myGame.board, (1,5), 1)
 
