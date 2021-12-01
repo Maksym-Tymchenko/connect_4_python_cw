@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.lib.utils import who
 
 class Game:
     def __init__(self, n, m, k):
@@ -56,14 +57,15 @@ class Game:
         """Function that checks if a board state is terminal.
         Return True if board is full or if someone won."""
 
+        # Check if anyone won
+        who_won = self.has_anyone_won(board)
+        has_anyone_won =  who_won is not None
+
         # Check if board is full
         is_full = not np.any(board == 0)
         
-        # Check if anyone won
-        has_anyone_won = self.has_anyone_won(board) is not None
-
-        # If board is full or anyone won return True
-        return is_full or has_anyone_won
+        # If board is full or anyone won return True and who won as a second output
+        return ((is_full or has_anyone_won), who_won)
 
 
     def has_anyone_won(self, board):
@@ -155,6 +157,232 @@ class Game:
         return None
 
 
+    def actions(self, board):
+        """ Returns allowed actions as a list of cells that can be played from this board state."""
+        num_cols = board.shape[1]
+        # Check if dropping element in a column is valid
+        valid_cols = []
+        for col in range(num_cols):
+            if self.is_valid(board, col):
+                valid_cols.append(col)
+
+        # Once identified the valid column check in which row the element will drop
+        valid_rows = []
+        for col in valid_cols:
+            idx_empty = np.where(board[:,col] == 0)
+            # Find lowest row with an empty cell
+            lowest_empty_row = np.max(idx_empty)
+            valid_rows.append(lowest_empty_row)
+        
+        # print(f"Valid rows: {valid_rows}")
+        # print(f"Valid cols: {valid_cols}")
+
+        valid_cells = list(zip(valid_rows, valid_cols))
+
+        # print(f"Valid cells: {valid_cells}")
+
+        return valid_cells
+
+    def action_result(self, board, cell, content):
+        """Returns the board resulting from filling the cell."""
+
+        # Only allow to fill cell with a 1 (X) or 2 (O).
+        assert content == 1 or content == 2, "You can only fill a cell with a 1 or a 2."
+
+        resultant_board = board.copy()
+        resultant_board[cell] = content
+
+        return resultant_board
+
+    def max(self, board):
+        """Returns maximum score for max among all the states achievable from the current state. """
+
+        # Check if the board is in a terminal state (leaf node)
+        if self.is_terminal(board)[0]:
+            who_won = self.is_terminal(board)[1]
+            # Return utility 1 if Max won and -1 if Min won, 0 if it is a draw
+            if who_won == 1:
+                return 1
+            elif who_won == 2:
+                return -1
+            else:
+                return 0
+
+        # Define v as the maximum score you can get from this state if both play optimally.
+        v = -np.inf
+
+        valid_actions = self.actions(board)
+
+
+        # valid_actions = [valid_actions[0]]
+        # print(f"valid actions: {valid_actions}")
+
+        for action in valid_actions:
+            # print(f"action max: {action}")
+            # resulting board of filling cell with an 1 (X)
+            res_board = self.action_result(board, action, 1)
+            # print(f"res board: \n {res_board}")
+            res_score = self.min(res_board)
+            # print(f"res score: {res_score}")
+            # resulting score if min playes next turn
+            v = max(v, res_score)
+            # print(f"res_score type: {type(res_score)}")
+
+        #print("I checked maxs action {action}")
+            
+
+        return v
+
+
+    def min(self, board):
+        """Returns minimum score for max among all the states achievable from the current state. """
+
+        # Check if the board is in a terminal state (leaf node)
+        if self.is_terminal(board)[0]:
+            who_won = self.is_terminal(board)[1]
+            # Return utility 1 if Max won and -1 if Min won, 0 if it is a draw
+            if who_won == 1:
+                return 1
+            elif who_won == 2:
+                return -1
+            else:
+                return 0
+
+        # Define v as the minimum score you can get from this state if both play optimally.
+        v = np.inf
+
+        valid_actions = self.actions(board)
+
+        # valid_actions = [valid_actions[0]]
+
+        for action in valid_actions:
+            # print(f"action min: {action}")
+            # resulting board of filling cell with an 2 (O)
+            res_board = self.action_result(board, action, 2)
+            # print(f"res board: \n {res_board}")
+            # resulting score if max plays next turn
+            res_score = self.max(res_board)
+            # print(f"res score: {res_score}")
+            v = min(v, res_score)
+
+        return v
+
+    def minimax_decision(self, board, player = "Max"):
+        """Recommend action assuming it is Max turn by default."""
+        # Do a terminal check
+        if self.is_terminal(board)[0]:
+            print("It is terminal!")
+            return None
+
+        valid_actions = self.actions(board)
+
+        if player == "Max":
+
+            children_min_value = []
+            for action in valid_actions:
+                res_board = self.action_result(board, action, 1)
+                res_score = self.min(res_board)
+                children_min_value.append(res_score)
+
+            # print(f"Children min value for max: {children_min_value}")
+            max_value = max(children_min_value)
+            idx = children_min_value.index(max_value)
+            recommended_action = valid_actions[idx]
+
+        if player == "Min":
+
+            children_max_value = []
+            for action in valid_actions:
+                res_board = self.action_result(board, action, 2)
+                res_score = self.max(res_board)
+                children_max_value.append(res_score)
+
+            # print(f"Children max value for min: {children_max_value}")
+            min_value = min(children_max_value)
+            idx = children_max_value.index(min_value)
+            recommended_action = valid_actions[idx]
+
+
+        return recommended_action
+
+    def play(self):
+        """Start the game assuming it is maxs turn."""
+
+        has_game_finished = False
+
+        # Helper function terminal check and announce
+        def terminal_check_announce(board):
+            # Do a terminal check
+            has_game_finished = self.is_terminal(self.board)[0]
+            if has_game_finished:
+                who_won = self.is_terminal(self.board)[1]
+                if who_won == 1:
+                    print("Congratulations Max won!")
+                elif who_won == 2:
+                    print("Unfortunaltely Min won.")
+                else:
+                    print("It''s a draw!")
+                return True
+            # Otherwise
+            return False
+
+        while not has_game_finished:
+
+            # Draw board
+            self.draw_board()
+
+            # Compute the minimax strategy for max.
+            recommended_decision =  self.minimax_decision(self.board)
+
+            # Recommend decision
+            print(f"Max should play {recommended_decision} now.")
+
+            # Prompt the user to move
+            max_move = input("Enter column where to drop the X: ")
+
+            # Convert to tuple
+            user_col = int(max_move)
+
+            # Check if is valid
+            is_user_move_valid = self.is_valid(self.board, user_col)
+
+            # Check valid actions of board
+            valid_actions = self.actions(self.board)
+
+            # Find resultant action of dropping element in user_col
+            for row, col in valid_actions:
+                if col == user_col:
+                    tuple_move = (row, col)
+
+            # Change the board
+            self.board = self.action_result(self.board, tuple_move, 1)
+
+            # Draw board
+            print(f"After your move the board looks like this: ")
+            self.draw_board()
+
+            # Do a terminal check
+            if terminal_check_announce(self.board):
+                has_game_finished = True
+                break
+
+            # Calculate min's move after user's input
+            # Compute the minimax strategy for min.
+            recommended_decision_min =  self.minimax_decision(self.board, player="Min")
+            print(f"Min played: {recommended_decision_min}")
+
+            # Change the board
+            self.board = self.action_result(self.board, recommended_decision_min, 2)
+
+            # Draw board
+            print(f"After Min''s move the board looks like this: ")
+            self.draw_board()
+            
+            # Do a terminal check
+            if terminal_check_announce(self.board):
+                has_game_finished = True
+
+
 def test_draw_board():
 
     # Initialize game
@@ -225,6 +453,45 @@ def test_has_anyone_won():
     # Check if it is terminal
     print(myGame.is_terminal(myGame.board))
 
+def test_max():
+
+    # Initialize game
+    myGame = Game(n=5, m=5, k=3)
+
+    # Create a full board
+    myGame.board[:,:] = 0
+
+    myGame.board[7:,0:2] = 2
+    myGame.board[3:7,0:2] = 1
+    myGame.board[2:3,0:2] = 2
+
+    myGame.board[7:,-2:] = 2
+    myGame.board[3:7,-2:] = 1
+    myGame.board[2:3,-2:] = 2
+
+    # myGame.board[7:,0] = 2
+    # myGame.board[4:7,0] = 1
+    # myGame.board[1:4,0] = 2
+
+
+    myGame.board[8:,3] = 2
+
+    # Draw the board
+    myGame.draw_board()
+
+    # res_board = myGame.action_result(myGame.board, (1,5), 1)
+
+    # print(res_board)
+
+    # Check if it is terminal
+    # print(myGame.min(myGame.board))
+   
+    #print(myGame.actions(myGame.board))
+
+    # Check recommended decision
+    # print(myGame.minimax_decision(myGame.board))
+
+    myGame.play()
 
 
 
@@ -232,4 +499,5 @@ if __name__ == "__main__":
     # test_draw_board()
     # test_is_valid()
     # test_is_terminal()
-    test_has_anyone_won()
+    # test_has_anyone_won()
+    test_max()
