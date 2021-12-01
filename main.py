@@ -2,12 +2,14 @@ import numpy as np
 from numpy.lib.utils import who
 from scipy.signal import convolve2d
 import time
+import math
 
 class Game:
-    def __init__(self, n, m, k, do_pruning = True):
+    def __init__(self, n, m, k, do_pruning = True, max_depth = math.inf):
         self.k = k
         self.do_pruning = do_pruning
         self.initialize_game(n, m)
+        self.max_depth = max_depth
 
     def initialize_game(self, n, m):
         # Empty cell is represented with a zero
@@ -29,7 +31,7 @@ class Game:
 
             if self.board[row, col] == 1:
                 visual_board[row][col] = "X"
-            elif self.board[row, col] == 2:
+            elif self.board[row, col] == 10:
                 visual_board[row][col] = 'O'
 
         print("The board looks like this: \n")
@@ -61,7 +63,7 @@ class Game:
         Return True if board is full or if someone won."""
 
         # Check if anyone won
-        who_won = self.has_anyone_won(board)
+        who_won = self.has_anyone_won_efficient(board)
         has_anyone_won =  who_won is not None
 
         # Check if board is full
@@ -72,27 +74,29 @@ class Game:
 
 
     def has_anyone_won_efficient(self,board):
+        """Function that checks if anyone has won the game at this state.
+        Returns None if no one won, 1 if Max won and 10 if Min won. (efficiently)"""
 
         num_rows = board.shape[0]
         num_cols = board.shape[1]
         k = self.k
 
-        horizontal_kernel = np.array([[ 1, 1, 1, 1]])
+        horizontal_kernel = np.ones((1,k))
         vertical_kernel = np.transpose(horizontal_kernel)
-        diag1_kernel = np.eye(4, dtype=np.uint8)
+        diag1_kernel = np.eye(k, dtype=np.uint8)
         diag2_kernel = np.fliplr(diag1_kernel)
         detection_kernels = [horizontal_kernel, vertical_kernel, diag1_kernel, diag2_kernel]
         
         for kernel in detection_kernels:
-            print(board)
-            print(kernel)
+            # print(board)
+            # print(kernel)
             convolution = convolve2d(board, kernel, mode="same")
-            print(f"horizontal convolution: {convolution}")
-            
-            if (convolution == 4).any():
+            # print(f"horizontal convolution: \n {convolution}")
+
+            if (convolution == k).any():
                 return 1
 
-            elif (convolution == 40).any():
+            elif (convolution == 10*k).any():
                 return 10
 
         return None
@@ -100,7 +104,7 @@ class Game:
 
     def has_anyone_won(self, board):
         """Function that checks if anyone has won the game at this state.
-        Returns None if no one won, 1 if Max won and 2 if Min won."""
+        Returns None if no one won, 1 if Max won and 10 if Min won."""
 
         num_rows = board.shape[0]
         num_cols = board.shape[1]
@@ -171,17 +175,17 @@ class Game:
 
 
     def is_k_consecutive(self, sub_k):
-        """ Returns None if no consecutive, 1 if k consecutive ones, 2 if k consecutive 2s. """
+        """ Returns None if no consecutive, 1 if k consecutive ones, 10 if k consecutive 10s. """
         k = self.k
 
         is_all_ones = np.all(sub_k == 1)
-        is_all_twos = np.all(sub_k == 2)
+        is_all_twos = np.all(sub_k == 10)
 
         if is_all_ones:
             return 1
 
         if is_all_twos:
-            return 2
+            return 10
         
         # Otherwise
         return None
@@ -216,16 +220,21 @@ class Game:
     def action_result(self, board, cell, content):
         """Returns the board resulting from filling the cell."""
 
-        # Only allow to fill cell with a 1 (X) or 2 (O).
-        assert content == 1 or content == 2, "You can only fill a cell with a 1 or a 2."
+        # Only allow to fill cell with a 1 (X) or 10 (O).
+        assert content == 1 or content == 10, "You can only fill a cell with a 1 or a 10."
 
         resultant_board = board.copy()
         resultant_board[cell] = content
 
         return resultant_board
 
-    def max(self, board, alpha, beta, do_pruning = True):
+    def max(self, board, alpha, beta, depth, do_pruning = True):
         """Returns maximum score for max among all the states achievable from the current state. """
+        depth = depth + 1
+
+        # Do a depth check
+        if depth == self.max_depth:
+            return 0
 
         # Check if the board is in a terminal state (leaf node)
         if self.is_terminal(board)[0]:
@@ -233,7 +242,7 @@ class Game:
             # Return utility 1 if Max won and -1 if Min won, 0 if it is a draw
             if who_won == 1:
                 return 1
-            elif who_won == 2:
+            elif who_won == 10:
                 return -1
             else:
                 return 0
@@ -252,7 +261,7 @@ class Game:
             # resulting board of filling cell with an 1 (X)
             res_board = self.action_result(board, action, 1)
             # print(f"res board: \n {res_board}")
-            res_score = self.min(res_board, alpha, beta, do_pruning = self.do_pruning)
+            res_score = self.min(res_board, alpha, beta, depth, do_pruning = self.do_pruning)
             # print(f"res score: {res_score}")
             # resulting score if min playes next turn
             v = max(v, res_score)
@@ -269,8 +278,14 @@ class Game:
         return v
 
 
-    def min(self, board, alpha, beta, do_pruning = True):
+    def min(self, board, alpha, beta, depth, do_pruning = True):
         """Returns minimum score for max among all the states achievable from the current state. """
+        depth = depth + 1
+
+
+        # Do a depth check
+        if depth == self.max_depth:
+            return 0
 
         # Check if the board is in a terminal state (leaf node)
         if self.is_terminal(board)[0]:
@@ -278,7 +293,7 @@ class Game:
             # Return utility 1 if Max won and -1 if Min won, 0 if it is a draw
             if who_won == 1:
                 return 1
-            elif who_won == 2:
+            elif who_won == 10:
                 return -1
             else:
                 return 0
@@ -292,11 +307,11 @@ class Game:
 
         for action in valid_actions:
             # print(f"action min: {action}")
-            # resulting board of filling cell with an 2 (O)
-            res_board = self.action_result(board, action, 2)
+            # resulting board of filling cell with an 10 (O)
+            res_board = self.action_result(board, action, 10)
             # print(f"res board: \n {res_board}")
             # resulting score if max plays next turn
-            res_score = self.max(res_board, alpha, beta, do_pruning = self.do_pruning)
+            res_score = self.max(res_board, alpha, beta, depth, do_pruning = self.do_pruning)
             # print(f"res score: {res_score}")
             v = min(v, res_score)
 
@@ -321,7 +336,7 @@ class Game:
             children_min_value = []
             for action in valid_actions:
                 res_board = self.action_result(board, action, 1)
-                res_score = self.min(res_board, -np.inf, +np.inf, do_pruning = self.do_pruning)
+                res_score = self.min(res_board, -np.inf, +np.inf, depth = 0, do_pruning = self.do_pruning)
                 children_min_value.append(res_score)
 
             # print(f"Children min value for max: {children_min_value}")
@@ -333,8 +348,8 @@ class Game:
 
             children_max_value = []
             for action in valid_actions:
-                res_board = self.action_result(board, action, 2)
-                res_score = self.max(res_board, -np.inf, +np.inf, do_pruning = self.do_pruning)
+                res_board = self.action_result(board, action, 10)
+                res_score = self.max(res_board, -np.inf, +np.inf,  depth = 0, do_pruning = self.do_pruning)
                 children_max_value.append(res_score)
 
             # print(f"Children max value for min: {children_max_value}")
@@ -358,7 +373,7 @@ class Game:
                 who_won = self.is_terminal(self.board)[1]
                 if who_won == 1:
                     print("Congratulations Max won!")
-                elif who_won == 2:
+                elif who_won == 10:
                     print("Unfortunaltely Min won.")
                 else:
                     print("It''s a draw!")
@@ -412,7 +427,7 @@ class Game:
             print(f"Min played: {recommended_decision_min}")
 
             # Change the board
-            self.board = self.action_result(self.board, recommended_decision_min, 2)
+            self.board = self.action_result(self.board, recommended_decision_min, 10)
 
             # Draw board
             print(f"After Min''s move the board looks like this: ")
@@ -429,7 +444,7 @@ def test_draw_board():
     myGame = Game(n=10, m=5, k=4)
 
     # Mark the top left element with an O
-    myGame.board[0, 0] = 2
+    myGame.board[0, 0] = 10
 
     # Mark all the bottom row with Xs
     myGame.board[-1, :] = 1
@@ -443,7 +458,7 @@ def test_is_valid():
     myGame = Game(n=10, m=5, k=4)
 
     # Mark the top left element with an O
-    myGame.board[0,0] = 2
+    myGame.board[0,0] = 10
 
     # Mark all the bottom row with Xs
     myGame.board[-1,:] = 1
@@ -460,7 +475,7 @@ def test_is_terminal():
     myGame = Game(n=10, m=5, k=4)
 
     # Create a full board
-    myGame.board[:,:] = 2
+    myGame.board[:,:] = 10
     myGame.board[3,4] = 1
 
     # Draw the board
@@ -472,17 +487,17 @@ def test_is_terminal():
 def test_has_anyone_won():
 
     # Initialize game
-    myGame = Game(n=10, m=6, k=4)
+    myGame = Game(n=10, m=6, k=5)
 
     # Create a full board
     myGame.board[:,:] = 0
-    myGame.board[-2,:2] = 2
+    myGame.board[-2,:2] = 10
     myGame.board[-2,2:5] = 1
-    myGame.board[:3,-1] = 2
+    myGame.board[:3,-1] = 10
 
-    # Create a diagonal of 2s
-    for i in range(3):
-        myGame.board[i+2,i+1] = 2
+    # Create a diagonal of 10s
+    for i in range(4):
+        myGame.board[i+2,i+1] = 10
 
     # Draw the board
     myGame.draw_board()
@@ -497,61 +512,42 @@ def test_has_anyone_won():
     # Check if it is terminal
     print(myGame.is_terminal(myGame.board))
 
-def test_max():
+def test_play():
 
     # Initialize game
-    myGame = Game(n=4, m=5, k=3)
-
-    # Create a full board
-    # myGame.board[:,:] = 0
-
-    # myGame.board[7:,0:2] = 2
-    # myGame.board[3:7,0:2] = 1
-    # myGame.board[2:3,0:2] = 2
-
-    # myGame.board[7:,-2:] = 2
-    # myGame.board[3:7,-2:] = 1
-    # myGame.board[2:3,-2:] = 2
-
-    # # myGame.board[7:,0] = 2
-    # # myGame.board[4:7,0] = 1
-    # # myGame.board[1:4,0] = 2
-
-
-    # myGame.board[8:,3] = 2
-
-    # # Draw the board
-    # myGame.draw_board()
-
-    # res_board = myGame.action_result(myGame.board, (1,5), 1)
-
-    # print(res_board)
-
-    # Check if it is terminal
-    # print(myGame.min(myGame.board))
-   
-    #print(myGame.actions(myGame.board))
-
-    # Check recommended decision
-    # print(myGame.minimax_decision(myGame.board))
-
+    myGame = Game(n=6, m=7, k=4, max_depth=8) 
     myGame.play()
 
-def time_alpha_beta():
-    import time
-    myGame = Game(n=5, m=5, k=4, do_pruning = True)
+def time_pruning_improvement():
 
+    # myGame = Game(n=6, m=7, k=4, do_pruning = False, max_depth = 9)
+
+    depth = 7
+
+    # no pruning
     start = time.time()
-    myGame.max(myGame.board, -np.inf, np.inf)
+    myGame_no_pruning = Game(n=6, m=7, k=4, do_pruning = False, max_depth = depth)
+    myGame_no_pruning.max(myGame_no_pruning.board, -np.inf, np.inf, depth = 0)
     end = time.time()
-    elapsed = end-start
+    elapsed_no_pruning = end-start
 
-    print(f"Max value search took {elapsed} seconds")
+    print(f"Minimax value search without pruning took {elapsed_no_pruning} seconds.")
+
+    # with pruning
+    start = time.time()
+    myGame_with_pruning = Game(n=6, m=7, k=4, do_pruning = True, max_depth = depth)
+    myGame_with_pruning.max(myGame_with_pruning.board, -np.inf, np.inf, depth = 0)
+    end = time.time()
+    elapsed_pruning = end-start
+
+    print(f"Minimax value search with pruning took {elapsed_pruning} seconds.")
+
+    print(f"Pruned search was {elapsed_no_pruning/ elapsed_pruning} times faster.")
 
 if __name__ == "__main__":
     # test_draw_board()
     # test_is_valid()
     # test_is_terminal()
-    test_has_anyone_won()
-    # test_max()
-    # time_alpha_beta()
+    # test_has_anyone_won()
+    test_play()
+    # time_pruning_improvement()
