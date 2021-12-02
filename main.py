@@ -1,14 +1,15 @@
 import numpy as np
-from numpy.lib.utils import who
 from scipy.signal import convolve2d
 import time
 import math
 
 class Game:
-    def __init__(self, n, m, k, do_pruning = True, max_depth = math.inf):
+    def __init__(self, m, n, k, do_pruning = True, max_depth = math.inf):
         self.k = k
-        self.do_pruning = do_pruning
         self.initialize_game(n, m)
+        # Attribute to toggle pruning on and off
+        self.do_pruning = do_pruning
+        # Attribute to stop search when max depth is reached
         self.max_depth = max_depth
 
     def initialize_game(self, n, m):
@@ -20,12 +21,11 @@ class Game:
         num_rows = self.board.shape[0]
         num_cols = self.board.shape[1]
 
-        # visual_board = num_rows*[num_cols*["."].copy()].copy()
-
+        # Represent empty cells with a dot
         visual_row = ["." for _ in range(num_cols)]
         visual_board = [visual_row.copy() for _ in range(num_rows)]
 
-        # Convert ones to Xs and twos to Os
+        # Convert ones to Xs and tens to Os
 
         for (row, col), _ in np.ndenumerate(self.board):
 
@@ -53,14 +53,24 @@ class Game:
 
     def is_valid(self, board, col):
         """Functions that returns True if adding an x or o into a specific column is valid."""
+
+        # Check if move is inside board
+        num_cols = board.shape[1]
+        range_cols = list(range(num_cols))
+        is_in_board = col in range_cols
+
+        if not is_in_board:
+            return False
+
         # Check if the top cell of a column is empty
         is_top_empty = (board[0, col] == 0)
-        
+
         return is_top_empty
 
     def is_terminal(self, board):
         """Function that checks if a board state is terminal.
-        Return True if board is full or if someone won."""
+        Return a tuple (bool, int), 
+        with the first element being a boolean (True if state is terminal) and the second element specifying who won."""
 
         # Check if anyone won
         who_won = self.has_anyone_won_efficient(board)
@@ -81,6 +91,7 @@ class Game:
         num_cols = board.shape[1]
         k = self.k
 
+        # Create horizontal, vertical and diagonal kernels to detect k consecutive elements
         horizontal_kernel = np.ones((1,k))
         vertical_kernel = np.transpose(horizontal_kernel)
         diag1_kernel = np.eye(k, dtype=np.uint8)
@@ -88,10 +99,8 @@ class Game:
         detection_kernels = [horizontal_kernel, vertical_kernel, diag1_kernel, diag2_kernel]
         
         for kernel in detection_kernels:
-            # print(board)
-            # print(kernel)
+            # Convolve each kernel with board
             convolution = convolve2d(board, kernel, mode="same")
-            # print(f"horizontal convolution: \n {convolution}")
 
             if (convolution == k).any():
                 return 1
@@ -102,97 +111,8 @@ class Game:
         return None
 
 
-    def has_anyone_won(self, board):
-        """Function that checks if anyone has won the game at this state.
-        Returns None if no one won, 1 if Max won and 10 if Min won."""
-
-        num_rows = board.shape[0]
-        num_cols = board.shape[1]
-        k = self.k
-
-        # Check if there are at least k adjacent elements in a row
-        for row in range(num_rows):
-            # print(f"Row number {row}")
-            for col in range(0, num_cols-k+1):
-                # print(f"Col number {col}")
-                sub_k_horiz = board[row, col:col+k]
-                # print(f"Sub k {sub_k_horiz}")
-                # If found k consecutive elements someone has won
-                consecutive_found = self.is_k_consecutive(sub_k_horiz)
-                # print(f"consecutive_found: {consecutive_found}")
-                if consecutive_found is not None:
-                    return consecutive_found
-    
-        # Check if there are at least k adjacent elements in a column
-        for col in range(num_cols):
-            # print(f"col number {col}")
-            for row in range(0, num_rows-k+1):
-                # print(f"row number {row}")
-                sub_k_vert = board[row:row+k,col]
-                # print(f"Sub k {sub_k_horiz}")
-                # If found k consecutive elements someone has won
-                consecutive_found = self.is_k_consecutive(sub_k_vert)
-                # print(f"consecutive_found: {consecutive_found}")
-                if consecutive_found is not None:
-                    return consecutive_found
- 
-        # Check diagonals starting from left edge
-        for row in range(num_rows):
-            # Calculate the length of diagonal starting at cell board[row, 0] and going down and to the right
-            diagonal_length = min((num_rows - row), num_cols)
-            if diagonal_length < k:
-                continue
-            else:
-                diagonal = np.zeros((diagonal_length,1))
-                for step_down in range(diagonal_length):
-                    diagonal[step_down] = board[row+step_down, 0+step_down]
-                # Check if this diagonal has k consecutive terms
-                for i in range(diagonal_length-k+1):
-                    sub_k_diag = diagonal[i:i+k]
-                    consecutive_found = self.is_k_consecutive(sub_k_diag)
-                    if consecutive_found is not None:
-                        return consecutive_found
-
-        # Check diagonals starting from top edge
-        for col in range(num_cols):
-            # Calculate the length of diagonal starting at cell board[0, col] and going down and to the right
-            diagonal_length = min((num_cols - col), num_rows)
-            if diagonal_length < k:
-                continue
-            else:
-                diagonal = np.zeros((diagonal_length,1))
-                for step_down in range(diagonal_length):
-                    diagonal[step_down] = board[0+step_down, col+step_down]
-                # Check if this diagonal has k consecutive terms
-                for i in range(diagonal_length-k+1):
-                    sub_k_diag = diagonal[i:i+k]
-                    consecutive_found = self.is_k_consecutive(sub_k_diag)
-                    if consecutive_found is not None:
-                        return consecutive_found
-
-        # If no 4 consecutive found return 0
-        return None
-
-
-    def is_k_consecutive(self, sub_k):
-        """ Returns None if no consecutive, 1 if k consecutive ones, 10 if k consecutive 10s. """
-        k = self.k
-
-        is_all_ones = np.all(sub_k == 1)
-        is_all_twos = np.all(sub_k == 10)
-
-        if is_all_ones:
-            return 1
-
-        if is_all_twos:
-            return 10
-        
-        # Otherwise
-        return None
-
-
     def actions(self, board):
-        """ Returns allowed actions as a list of cells that can be played from this board state."""
+        """ Returns allowed actions as a list of tuple cells that can be played from this board state."""
         num_cols = board.shape[1]
         # Check if dropping element in a column is valid
         valid_cols = []
@@ -203,8 +123,8 @@ class Game:
         # Once identified the valid column check in which row the element will drop
         valid_rows = []
         for col in valid_cols:
+            # Find lowest row with an empty cell (where element would physically drop)
             idx_empty = np.where(board[:,col] == 0)
-            # Find lowest row with an empty cell
             lowest_empty_row = np.max(idx_empty)
             valid_rows.append(lowest_empty_row)
         
@@ -218,7 +138,7 @@ class Game:
         return valid_cells
 
     def action_result(self, board, cell, content):
-        """Returns the board resulting from filling the cell."""
+        """Returns the board resulting from filling the input cell with the input content."""
 
         # Only allow to fill cell with a 1 (X) or 10 (O).
         assert content == 1 or content == 10, "You can only fill a cell with a 1 or a 10."
@@ -233,7 +153,9 @@ class Game:
         depth = depth + 1
 
         # Do a depth check
+        # Stop searching if you looked too deep
         if depth == self.max_depth:
+            # Return a heauristic of 0 (draw)
             return 0
 
         # Check if the board is in a terminal state (leaf node)
@@ -266,13 +188,12 @@ class Game:
             # resulting score if min playes next turn
             v = max(v, res_score)
              
-            # Do alpha beta pruning
+            # Do alpha beta pruning if toggled on
             if do_pruning and v >= beta:
                 return v
             alpha = max(alpha, v)
             # print(f"res_score type: {type(res_score)}")
 
-        #print("I checked maxs action {action}")
             
 
         return v
@@ -284,7 +205,9 @@ class Game:
 
 
         # Do a depth check
+        # Stop searching if you looked too deep
         if depth == self.max_depth:
+            # Return a heauristic of 0 (draw)
             return 0
 
         # Check if the board is in a terminal state (leaf node)
@@ -315,7 +238,7 @@ class Game:
             # print(f"res score: {res_score}")
             v = min(v, res_score)
 
-            # Do alpha beta pruning
+            # Do alpha beta pruning if toggled on
             if do_pruning and v <= alpha:
                 return v
             beta = min(beta, v)
@@ -323,49 +246,62 @@ class Game:
         return v
 
     def minimax_decision(self, board, player = "Max"):
-        """Recommend action assuming it is Max turn by default."""
+        """Recommend action as a tuple (row, col) representing a cell assuming it is Max turn by default."""
+
         # Do a terminal check
         if self.is_terminal(board)[0]:
             print("It is terminal!")
             return None
 
+        # Identify valid actions from this state
         valid_actions = self.actions(board)
 
         if player == "Max":
 
             children_min_value = []
             for action in valid_actions:
+                # Calculate the board resulting from applying a valid action
                 res_board = self.action_result(board, action, 1)
+                # Calculate the score of the resulting board
                 res_score = self.min(res_board, -np.inf, +np.inf, depth = 0, do_pruning = self.do_pruning)
+                # Collect all the scores of the children states
                 children_min_value.append(res_score)
 
             # print(f"Children min value for max: {children_min_value}")
+            # Pick the best score from the children states
             max_value = max(children_min_value)
             idx = children_min_value.index(max_value)
+            # Recommend action that gives the highest score
             recommended_action = valid_actions[idx]
 
         if player == "Min":
 
             children_max_value = []
             for action in valid_actions:
+                # Calculate the board resulting from applying a valid action
                 res_board = self.action_result(board, action, 10)
+                # Calculate the score of the resulting board
                 res_score = self.max(res_board, -np.inf, +np.inf,  depth = 0, do_pruning = self.do_pruning)
+                # Collect all the scores of the children states
                 children_max_value.append(res_score)
 
             # print(f"Children max value for min: {children_max_value}")
+
+            # Pick the lowest score (best for min) from the children states
             min_value = min(children_max_value)
             idx = children_max_value.index(min_value)
+            # Recommend action that gives the lowest score (best for min)
             recommended_action = valid_actions[idx]
 
 
         return recommended_action
 
-    def play(self):
+    def play(self, force_move = False):
         """Start the game assuming it is maxs turn."""
 
         has_game_finished = False
 
-        # Helper function terminal check and announce
+        # Helper function that does terminal check and announces winner
         def terminal_check_announce(board):
             # Do a terminal check
             has_game_finished = self.is_terminal(self.board)[0]
@@ -390,21 +326,30 @@ class Game:
             recommended_decision =  self.minimax_decision(self.board)
 
             # Recommend decision
-            print(f"Max should play {recommended_decision} now.")
+            print(f"Max should play column {recommended_decision[1]} now.")
 
-            # Prompt the user to move
-            max_move = input("Enter column where to drop the X: ")
+            is_user_move_valid = False
 
-            # Convert to tuple
-            user_col = int(max_move)
+            while not is_user_move_valid:
+                # Prompt the user to move
+                if force_move == False:
+                    max_move = input("Enter column where to drop the X: ")
+                elif force_move == True:
+                    max_move = recommended_decision[1] # Force user to use recommended move
 
-            # Check if is valid
-            is_user_move_valid = self.is_valid(self.board, user_col)
+                # Convert move to tuple
+                user_col = int(max_move)
+
+                # Check if is valid
+                is_user_move_valid = self.is_valid(self.board, user_col)
+
+                if not is_user_move_valid:
+                    print("Your move is not valid, try again.")
 
             # Check valid actions of board
             valid_actions = self.actions(self.board)
 
-            # Find resultant action of dropping element in user_col
+            # Find resultant action of dropping element in user specified column
             for row, col in valid_actions:
                 if col == user_col:
                     tuple_move = (row, col)
@@ -424,7 +369,7 @@ class Game:
             # Calculate min's move after user's input
             # Compute the minimax strategy for min.
             recommended_decision_min =  self.minimax_decision(self.board, player="Min")
-            print(f"Min played: {recommended_decision_min}")
+            print(f"Min played column {recommended_decision_min[1]}")
 
             # Change the board
             self.board = self.action_result(self.board, recommended_decision_min, 10)
@@ -458,7 +403,7 @@ def test_is_valid():
     myGame = Game(n=10, m=5, k=4)
 
     # Mark the top left element with an O
-    myGame.board[0,0] = 10
+    myGame.board[:,0] = 10
 
     # Mark all the bottom row with Xs
     myGame.board[-1,:] = 1
@@ -487,7 +432,7 @@ def test_is_terminal():
 def test_has_anyone_won():
 
     # Initialize game
-    myGame = Game(n=10, m=6, k=5)
+    myGame = Game(n=10, m=6, k=4)
 
     # Create a full board
     myGame.board[:,:] = 0
@@ -512,21 +457,33 @@ def test_has_anyone_won():
     # Check if it is terminal
     print(myGame.is_terminal(myGame.board))
 
-def test_play():
+def test_play(interactive = True):
+
+    # Force the move if not interactive mode chosen
+    force_move = not interactive
 
     # Initialize game
-    myGame = Game(n=6, m=7, k=4, max_depth=8) 
-    myGame.play()
+    myGame = Game(n=3, m=5, k=3, max_depth=math.inf, do_pruning=True)
+
+    myGame.play(force_move=force_move)
+
+def test_play_connect_4(interactive = True):
+
+    # Force the move if not interactive mode chosen
+    force_move = not interactive
+
+    # Initialize depth
+    myGame = Game(n=6, m=7, k=4, max_depth=8, do_pruning=True)
+
+    myGame.play(force_move=force_move)
 
 def time_pruning_improvement():
 
-    # myGame = Game(n=6, m=7, k=4, do_pruning = False, max_depth = 9)
-
-    depth = 7
+    max_depth = math.inf
 
     # no pruning
     start = time.time()
-    myGame_no_pruning = Game(n=6, m=7, k=4, do_pruning = False, max_depth = depth)
+    myGame_no_pruning = Game(n=3, m=4, k=3, do_pruning = False, max_depth= max_depth)
     myGame_no_pruning.max(myGame_no_pruning.board, -np.inf, np.inf, depth = 0)
     end = time.time()
     elapsed_no_pruning = end-start
@@ -535,7 +492,7 @@ def time_pruning_improvement():
 
     # with pruning
     start = time.time()
-    myGame_with_pruning = Game(n=6, m=7, k=4, do_pruning = True, max_depth = depth)
+    myGame_with_pruning = Game(n=3, m=4, k=3, do_pruning = True, max_depth= max_depth)
     myGame_with_pruning.max(myGame_with_pruning.board, -np.inf, np.inf, depth = 0)
     end = time.time()
     elapsed_pruning = end-start
@@ -549,5 +506,6 @@ if __name__ == "__main__":
     # test_is_valid()
     # test_is_terminal()
     # test_has_anyone_won()
-    test_play()
+    test_play(interactive = False)
+    # test_play_connect_4(interactive = True)
     # time_pruning_improvement()
