@@ -2,6 +2,7 @@ import numpy as np
 from scipy.signal import convolve2d
 import time
 import math
+import os
 
 class Game:
     def __init__(self, m, n, k, do_pruning = True, max_depth = math.inf):
@@ -457,15 +458,21 @@ def test_has_anyone_won():
     # Check if it is terminal
     print(myGame.is_terminal(myGame.board))
 
-def test_play(interactive = True):
+def test_play(n = 3, m = 5, k = 3, interactive = True, do_pruning = True):
 
     # Force the move if not interactive mode chosen
     force_move = not interactive
 
     # Initialize game
-    myGame = Game(n=3, m=5, k=3, max_depth=math.inf, do_pruning=True)
+    myGame = Game(n=n, m=m, k=k, max_depth=math.inf, do_pruning=do_pruning)
 
+    start = time.time()
     myGame.play(force_move=force_move)
+    end = time.time()
+    elapsed = end - start
+    print(f"The game took {elapsed} seconds to run for m, n, k of {(m, n, k)}, with do_pruning being {do_pruning}.")
+
+    return elapsed
 
 def test_play_connect_4(interactive = True):
 
@@ -501,11 +508,54 @@ def time_pruning_improvement():
 
     print(f"Pruned search was {elapsed_no_pruning/ elapsed_pruning} times faster.")
 
+def iterate_m_n_k(m_list = [], n_list = [], k_list = [], do_pruning = True):
+    running_times = np.zeros( (max(m_list)+1, max(n_list)+1, max(k_list)+1) )
+    print(running_times.shape)
+    for m in m_list:
+        for n in n_list:
+            for k in k_list:
+                
+                running_times[m, n, k] = test_play(m = m, n = n, k = k, interactive=False, do_pruning = do_pruning)
+
+    return running_times
+
+def write_table_to_file(matrix, k):
+
+    folder_name = "tables"
+
+    cwd = os.getcwd()
+    dir = os.path.join(cwd,folder_name)
+    if not os.path.isdir(dir):
+        os.mkdir(dir)
+    # Write confusion matrix to file
+    np.savetxt(dir + "/table" + f"{k}" + ".csv", matrix, delimiter = " & ", fmt='%.3f')
+
 if __name__ == "__main__":
     # test_draw_board()
     # test_is_valid()
     # test_is_terminal()
     # test_has_anyone_won()
-    test_play(interactive = False)
+    test_play(n = 4, m = 4, k = 4, interactive = False)
     # test_play_connect_4(interactive = True)
     # time_pruning_improvement()
+
+    # Calculate running time with pruning
+    # running_times_table = iterate_m_n_k(m_list = [3, 4], n_list = [3, 4], k_list = [3, 4], do_pruning = True)
+
+    # # Extract running times for k = 3 with pruning
+    # write_table_to_file(running_times_table[:,:,3], "3_with_pruning")
+
+    # # Extract running times for k = 4 with pruning
+    # write_table_to_file(running_times_table[:,:,4], "4_with_pruning")
+
+
+    # # Calculate running time with no pruning
+    # running_times_table = iterate_m_n_k(m_list = [3, 4], n_list = [3, 4], k_list = [3, 4], do_pruning = False)
+
+    # # Extract running times for k = 3 with no pruning
+    # write_table_to_file(running_times_table[:,:,3], "3_no_pruning")
+
+    # # Extract running times for k = 4 with no pruning
+    # write_table_to_file(running_times_table[:,:,4], "4_no_pruning")
+
+
