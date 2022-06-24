@@ -531,11 +531,13 @@ def write_table_to_file(matrix, k):
     np.savetxt(dir + "/table" + f"{k}" + ".csv", matrix, delimiter = " & ", fmt='%.3f')
 
 if __name__ == "__main__":
+    test_play(n = 4, m = 4, k = 4, interactive = True, do_pruning = True)
+
     # test_draw_board()
     # test_is_valid()
     # test_is_terminal()
     # test_has_anyone_won()
-    test_play(n = 4, m = 4, k = 4, interactive = False, do_pruning = False) # Check if it takes more than 3600
+   
     # test_play_connect_4(interactive = True)
     # time_pruning_improvement()
 
